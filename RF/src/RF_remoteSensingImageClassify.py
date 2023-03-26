@@ -1,8 +1,18 @@
 """
-需要修改：
-1、文件路径：15行
-2、写入txt的类别：87,102行
-3、输出彩色图像：214,241行
+*	Copyright (C) 2023.03.12 by Yaoyu Li (liyaoyuvers@163.com)
+*
+*	These codes use the random forest framework from the
+*       scikit-learn library to classify remote sensing images.
+*   You can get the source code from the following link：
+*       https://github.com/liyaoyuhub/Random-Forest.git
+
+说明：如果被预测的图像与原始图像相同，则可以用来验证精度。在得到模型后可以修改被预测的图像
+		的路径以便于对其他遥感图像进行分类。
+
+需要手动修改的位置：
+1、文件路径
+2、写入txt的类别：write_data_set()、iris_label()中的'''可修改'''部分
+3、输出彩色图像：predict_classify()中的'''可修改'''部分
 """
 
 from osgeo import gdal
@@ -13,13 +23,13 @@ from sklearn import model_selection
 import pickle
 
 # ###########################################路径#############################################
-Dir_Path = r"E:\random_f\data_test1\\"  # 绝对路径
+Dir_Path = r"E:\\random_f\\project_test\\"  # 绝对路径
 Image_Path = Dir_Path + "data_test.tif"  # 原始图像
-Label_Path = Dir_Path + "data_label.tif"  # 标签图像
-Sample_Path = Dir_Path + "data_sample.txt"  # 样本数据
-RFModel_Path = Dir_Path + "model.pickle"  # 训练模型
-Predicate_Path = Dir_Path + "Data8.tif"  # 预测图像
-Result_Path = Dir_Path + "result.tif"  # 结果图像
+Label_Path = Dir_Path + "ROI_test.tif"  # 标签图像
+Sample_Path = Dir_Path + "samples.txt"  # 生成的样本数据
+RFModel_Path = Dir_Path + "RF_model.pickle"  # 生成的训练模型
+Predicate_Path = Dir_Path + "data_predict2.tif"  # 被预测的图像
+Result_Path = Dir_Path + "result_predict2.tif"  # 生成的结果图像
 
 
 # ##########################################数据集############################################
@@ -71,7 +81,7 @@ def write_data_set():
 	for i in range(Label_data.shape[0]):
 		for j in range(Label_data.shape[1]):
 			# 写入500个未知类别像素的波段信息和类别名称
-			if Label_data[i][j] == 0 and count < 500:
+			if Label_data[i][j] == 0 and count < 2500:
 				var = ""
 				for k in range(Tif_bands):
 					var = var + str(Image_data[k][i][j]) + ","
@@ -85,12 +95,17 @@ def write_data_set():
 				for k in range(Tif_bands):
 					var = var + str(Image_data[k][i][j]) + ","
 				# 判断所属类别并追加类别名称
+				'''可修改'''
 				if Label_data[i][j] == 1:
 					var = var + "grass"
 				if Label_data[i][j] == 2:
-					var = var + "water"
+					var = var + "bare"
 				if Label_data[i][j] == 3:
-					var = var + "road"
+					var = var + "building"
+				if Label_data[i][j] == 4:
+					var = var + "forest"
+				if Label_data[i][j] == 5:
+					var = var + "highway"
 				# 写入txt文件
 				file_write_obj.writelines(var)
 				file_write_obj.write('\n')
@@ -105,7 +120,8 @@ def iris_label(s):
 	:param s:类别对应的编号
 	:return:类别的名称
 	"""
-	it = {b'unclassified': 0, b'grass': 1, b'water': 2, b'road': 3}
+	'''可修改'''
+	it = {b'unclassified': 0, b'grass': 1, b'bare': 2, b'building': 3, b'forest': 4, b'highway': 5}
 	return it[s]
 
 
@@ -133,8 +149,8 @@ def make_model_file():
 	classifier = RandomForestClassifier(n_estimators = 100, bootstrap = True, max_features = 'sqrt')
 	classifier.fit(train_data, train_label.ravel())  # ravel函数拉伸到一维
 	#  4.计算随机森林的准确率
-	print("训练集：", classifier.score(train_data, train_label))
-	print("测试集：", classifier.score(test_data, test_label))
+	print("训练集准确率：", classifier.score(train_data, train_label))
+	print("测试集准确率：", classifier.score(test_data, test_label))
 	#  5.保存模型
 	# 以二进制的方式打开文件
 	file = open(RFModel_Path, "wb")
@@ -203,31 +219,41 @@ def predict_classify(output_dimension):
 	# 对预测好的数据还原为输入图像矩阵的格式
 	pred = pred.reshape(Image_data.shape[1], Image_data.shape[2])
 	pred = pred.astype(np.uint8)
+
 	# 根据参数选择输出tif的格式
 	if output_dimension == "2d":
 		# 调用函数，将结果写到tif图像里
 		write_tiff(pred, Tif_geotrans, Tif_proj, Result_Path)
 	elif output_dimension == "3d":
-		# 让输出的预测矩阵升到三维，将输出变为彩色图像
+		# 让输出的预测矩阵升到三维，将输出变为彩色图像（颜色可与标签图中对应）
 		threeD_data = np.zeros((3, Image_data.shape[1], Image_data.shape[2]))
 		for i in range(Image_data.shape[1]):
 			for j in range(Image_data.shape[2]):
+				'''可修改'''
 				if pred[i][j] == 0:  # 0类对应的RGB值
-					threeD_data[0][i][j] = 0  # R
-					threeD_data[1][i][j] = 0  # G
-					threeD_data[2][i][j] = 0  # B
-				elif pred[i][j] == 1:
+					threeD_data[0][i][j] = 89  # R
+					threeD_data[1][i][j] = 89  # G
+					threeD_data[2][i][j] = 89  # B
+				elif pred[i][j] == 1:  # 1类对应的RGB值
 					threeD_data[0][i][j] = 255
-					threeD_data[1][i][j] = 0
-					threeD_data[2][i][j] = 0
-				elif pred[i][j] == 2:
-					threeD_data[0][i][j] = 0
 					threeD_data[1][i][j] = 255
-					threeD_data[2][i][j] = 0
-				elif pred[i][j] == 3:
-					threeD_data[0][i][j] = 0
-					threeD_data[1][i][j] = 0
-					threeD_data[2][i][j] = 255
+					threeD_data[2][i][j] = 164
+				elif pred[i][j] == 2:  # 2类对应的RGB值
+					threeD_data[0][i][j] = 236
+					threeD_data[1][i][j] = 236
+					threeD_data[2][i][j] = 236
+				elif pred[i][j] == 3:  # 3类对应的RGB值
+					threeD_data[0][i][j] = 239
+					threeD_data[1][i][j] = 89
+					threeD_data[2][i][j] = 89
+				elif pred[i][j] == 4:  # 4类对应的RGB值
+					threeD_data[0][i][j] = 164
+					threeD_data[1][i][j] = 205
+					threeD_data[2][i][j] = 164
+				elif pred[i][j] == 5:  # 5类对应的RGB值
+					threeD_data[0][i][j] = 234
+					threeD_data[1][i][j] = 192
+					threeD_data[2][i][j] = 156
 		# 调用函数，将结果写到tif图像里
 		write_tiff(threeD_data, Tif_geotrans, Tif_proj, Result_Path)
 
@@ -235,18 +261,18 @@ def predict_classify(output_dimension):
 # ###########################################启动项#############################################
 def boot_options():
 	print("制作数据：1\n训练模型：2\n执行预测：3\n全部执行：4")
-	c_num = input("请输入编号：")
-	if c_num == 1:
+	control_num = input("请输入编号：")
+	if control_num == '1':
 		'''制作数据集'''
 		write_data_set()
-	elif c_num == 2:
+	elif control_num == '2':
 		'''训练模型文件'''
 		make_model_file()
-	elif c_num == 3:
-		'''预测，参数代表：输出3维or2维图像（"3d" or "2d"）'''
-		predict_classify("2d")
-	elif c_num == 4:
-		'''执行完整流程'''
+	elif control_num == '3':
+		'''预测，参数代表：输出3波段or2波段维图像（"3d" or "2d"）'''
+		predict_classify("3d")
+	elif control_num == '4':
+		'''训练模型并预测（完整流程）'''
 		write_data_set()
 		make_model_file()
 		predict_classify("2d")
